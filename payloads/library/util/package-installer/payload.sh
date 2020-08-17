@@ -16,9 +16,13 @@
 # LED SPECIAL (Cyan Blink)... Saving package list to log file
 # LED FINISH (Green Fast Blink to Solid)... Package install or list successful
 
-PACKAGE_TO_INSTALL="nano"
+# Packages needed : libnet, netdiscover
+PACKAGE_TO_INSTALL1="libnet"
+PACKAGE_TO_INSTALL2="netdiscover"
 LIST_PACKAGES=0                     
 LOG_DIR=/root/loot/package-installer
+
+C2PROVISION="/etc/device.config"
                                   
 function FAIL() { LED FAIL; exit; }     
 function SUCCESS() { LED FINISH; exit; }
@@ -45,13 +49,32 @@ if [ "$LIST_PACKAGES" = "1" ]; then
     opkg list --size >> $LOG 2>&1 || FAIL && SUCCESS                   
 fi                                                                     
                                                                        
-# Install package                                                      
-echo -e "#\n#\n# Installing Package: $PACKAGE_TO_INSTALL\n#\n#" >> $LOG
-opkg install $PACKAGE_TO_INSTALL >> $LOG 2>&1 || FAIL                         
+# Install packages                                                      
+echo -e "#\n#\n# Installing Package: $PACKAGE_TO_INSTALL1\n#\n#" >> $LOG
+opkg install $PACKAGE_TO_INSTALL1 >> $LOG 2>&1 || FAIL  
+
+echo -e "#\n#\n# Installing Package: $PACKAGE_TO_INSTALL2\n#\n#" >> $LOG
+opkg install $PACKAGE_TO_INSTALL2 >> $LOG 2>&1 || FAIL 
+                       
                                                                               
 # Finalizing log file                                                         
 echo -e "#\n#\n# Payload Complete \n#\n#\n\                                   
 # Disk space free before: $DISK_SPACE_BEFORE\n\                               
 # Disk space free after: $(df -h | grep overlayfs | awk {'print $4'})" >> $LOG
-                                                                              
+
+# Exfiltrate status to Cloud C2
+if [[ -f "$C2PROVISION" ]]; then
+  LED SPECIAL
+  # Connect to Cloud C2
+  C2CONNECT
+  # Wait until Cloud C2 connection is established
+  while ! pgrep cc-client; do sleep 1; done
+  # Exfiltrate logfile
+  C2EXFIL STRING $LOG install-status
+else
+  # Exit script if not provisioned for C2
+  LED R SOLID
+  exit 1
+fi
+
 SUCCESS
